@@ -1,0 +1,213 @@
+/* Starter and compact conversation controls, separate from cooking workspace styles. */
+.k-kitchen-starter {
+  width: 100%;
+  max-width: 764px;
+  margin: auto auto 0;
+  padding: 30px 28px 0;
+  text-align: center;
+}
+.k-kitchen-starter h1 {
+  font-size: clamp(27px, 3vw, 34px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -1px;
+}
+.k-kitchen-starter > p {
+  margin-top: 12px;
+  color: var(--k-muted);
+  font-size: 14px;
+}
+.k-start-objects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 28px;
+}
+.k-app .k-start-object {
+  text-align: left;
+  border: 1px solid #e9e5df;
+  border-radius: 22px;
+  padding: 12px 22px 20px;
+  background: #fff;
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease;
+}
+.k-start-object img {
+  width: 100%;
+  height: clamp(115px, 20vh, 175px);
+  object-fit: contain;
+  transition: transform 350ms ease;
+}
+.k-start-object strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 550;
+}
+.k-start-object strong svg {
+  color: #aaa;
+}
+.k-start-object:not(:disabled):hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 26px #4023130c;
+}
+.k-start-object:not(:disabled):hover img {
+  transform: rotate(-4deg) scale(1.06);
+}
+.k-app .k-start-voice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 6px 16px;
+  min-height: 68px;
+  border: 1px solid #eee3dc;
+  border-radius: 18px;
+  background: #fcf7f3;
+  transition: background 200ms ease;
+}
+.k-start-voice:hover {
+  background: #f7eee6;
+}
+.k-start-voice img {
+  width: 48px;
+  height: 54px;
+  object-fit: contain;
+}
+.k-start-voice strong {
+  font-size: 13px;
+  font-weight: 550;
+}
+.k-app .k-start-object:focus-visible,
+.k-app .k-start-voice:focus-visible {
+  outline: 3px solid var(--k-coral);
+  outline-offset: 4px;
+}
+.k-kitchen-starter ~ .k-thread-footer {
+  margin-bottom: auto;
+  margin-top: 24px;
+}
+.k-thread.is-welcome .k-composer-zone {
+  max-width: 764px;
+}
+.k-thread .k-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 7px 8px 7px 18px;
+  border-radius: 26px;
+}
+.k-thread .k-composer textarea {
+  min-height: 34px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+.k-thread .k-composer-controls {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+.k-thread .k-composer-hint {
+  display: none;
+}
+.k-thread .k-composer .k-voice-state {
+  max-width: 190px;
+}
+.k-thread .k-composer .k-voice-tools {
+  gap: 5px;
+}
+.k-thread .k-composer .k-voice-button {
+  font-size: 11px;
+  min-height: 35px;
+  padding: 7px 10px;
+}
+.k-thread.is-welcome .k-composer .k-voice-button {
+  display: none;
+}
+.k-thread .k-composer-caption:empty {
+  display: none;
+}
+.k-thread:not(.is-welcome) .k-composer {
+  flex-wrap: wrap;
+}
+.k-thread:not(.is-welcome) .k-composer textarea {
+  flex: 1;
+  min-width: 120px;
+}
+.k-thread:not(.is-welcome) .k-composer-controls {
+  flex: 1 0 100%;
+  justify-content: space-between;
+}
+.k-discovery-pending {
+  margin: auto;
+  padding: 32px;
+  color: var(--k-muted);
+  font-size: 14px;
+}
+@media (max-width: 600px) {
+  .k-kitchen-starter {
+    padding: 24px 20px 0;
+  }
+  .k-start-objects {
+    gap: 12px;
+    margin-top: 22px;
+  }
+  .k-app .k-start-object {
+    padding: 8px 12px 15px;
+    border-radius: 18px;
+  }
+  .k-start-object strong {
+    font-size: 11px;
+  }
+  .k-start-object img {
+    height: 115px;
+  }
+  .k-start-object strong svg {
+    width: 13px;
+  }
+  .k-thread .k-composer .k-voice-state {
+    max-width: 160px;
+  }
+}
+@media (max-height: 700px) and (min-width: 601px) {
+  .k-kitchen-starter {
+    padding-top: 22px;
+  }
+  .k-start-object img {
+    height: 120px;
+  }
+  .k-start-objects {
+    margin-top: 20px;
+  }
+  .k-app .k-start-voice {
+    min-height: 58px;
+  }
+  .k-start-voice img {
+    height: 44px;
+  }
+  .k-kitchen-starter ~ .k-thread-footer {
+    margin-top: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .k-app .k-start-object,
+  .k-start-object img,
+  .k-app .k-start-voice {
+    transition: none;
+  }
+}
+
+.k-missing-options {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+}
+.k-missing-options > p {
+  flex-basis: 100%;
+}

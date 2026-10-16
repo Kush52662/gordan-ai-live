@@ -1,0 +1,9 @@
+node_modules
+.next
+.next-*
+.gordon-data
+coverage
+.env
+.env.*
+.git
+*.tsbuildinfo

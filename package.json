@@ -1,0 +1,22 @@
+{
+  "name": "gordon-ai",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.1",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev:web": "bash scripts/run-app.sh web dev",
+    "dev:agent": "bash scripts/run-app.sh agent dev",
+    "check:web": "bash scripts/run-app.sh web typecheck",
+    "check:agent": "bash scripts/run-app.sh agent typecheck",
+    "build:web": "bash scripts/run-app.sh web build",
+    "lint:web": "bash scripts/run-app.sh web lint",
+    "lint:agent": "bash scripts/run-app.sh agent lint",
+    "install:apps": "bash scripts/run-app.sh web install --frozen-lockfile && bash scripts/run-app.sh agent install --frozen-lockfile",
+    "test": "bash scripts/run-app.sh web test && bash scripts/run-app.sh agent test",
+    "agent:eval": "bash scripts/run-app.sh agent exec node ../../scripts/evaluate-agent.mjs",
+    "generate:tools": "bash scripts/run-app.sh web exec node ../../scripts/generate-tool-schemas.mjs"
+  }
+}

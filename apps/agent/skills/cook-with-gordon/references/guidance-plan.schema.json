@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gordon temporal guidance plan",
+  "description": "Integration contract; separate guidance persistence and general check-in scheduling are not implemented. IDs and recipe references also require semantic validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "recipeId", "recipeVersion", "items"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "recipeId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recipeVersion": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Saved recipe version; null for an unsaved displayed choice. Rebuild guidance when that choice changes."
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "recipeStepId",
+          "dependsOn",
+          "kind",
+          "startEvent",
+          "cues",
+          "completionEvidence",
+          "enrichment"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "recipeStepId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dependsOn": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "kind": {
+            "enum": ["hands-on", "waiting", "monitoring"]
+          },
+          "startEvent": {
+            "enum": ["cook_confirmed_start", "dependency_completed", "timer_started"]
+          },
+          "expectedSeconds": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cues": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "kind", "trigger", "text"],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "kind": {
+                  "enum": ["instruction", "check-in", "safety"]
+                },
+                "trigger": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["event"],
+                  "properties": {
+                    "event": {
+                      "enum": ["action_started", "cook_asks", "timer_due", "attention_window"]
+                    },
+                    "offsetSeconds": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "completionEvidence": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": ["cook_confirmation", "sensory_check", "timer_elapsed_then_check"]
+            }
+          },
+          "enrichment": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "text", "eligibleWhen"],
+              "properties": {
+                "kind": {
+                  "enum": ["technique-tip", "fun-fact"]
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "eligibleWhen": {
+                  "const": "waiting_with_attention_available"
+                },
+                "sourceUrl": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "kind": {
+                        "const": "fun-fact"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": ["sourceUrl"]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

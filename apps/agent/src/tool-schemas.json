@@ -1,0 +1,793 @@
+[
+  {
+    "name": "update_recipe_document",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "createNew": {
+          "type": "boolean"
+        },
+        "recipeId": {
+          "type": "string"
+        },
+        "patch": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "servings": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "ingredients": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  },
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100000
+                  },
+                  "unit": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": ["name", "amount", "unit"],
+                "additionalProperties": false
+              }
+            },
+            "steps": {
+              "maxItems": 150,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "stage": {
+                    "type": "string",
+                    "enum": ["prep", "cook", "plate"],
+                    "description": "prep: gather, measure, wash or chop without heat. cook: every heating action, including bringing water to a boil or heating a pan. plate: serve and arrange. Cold recipes omit cook."
+                  },
+                  "instruction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": ["id", "stage", "instruction"],
+                "additionalProperties": false
+              },
+              "description": "The complete ordered method, not a partial list of changed steps. Empty until ingredients are agreed. Include prep and plate; all heating belongs to cook."
+            },
+            "notes": {
+              "type": "string",
+              "maxLength": 12000
+            }
+          },
+          "additionalProperties": false
+        },
+        "checks": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              },
+              "availability": {
+                "type": "string",
+                "enum": ["unknown", "yes", "no"]
+              }
+            },
+            "required": ["index", "availability"],
+            "additionalProperties": false
+          }
+        },
+        "acceptIngredients": {
+          "type": "boolean"
+        },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "availableIngredients": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confirmedStaples": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "unavailableIngredients": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "dietaryExclusions": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "equipment": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "preferences": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "servings": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "timeMinutes": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1440
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "craving": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "suggestions": {
+          "type": "object",
+          "properties": {
+            "question": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            },
+            "options": {
+              "minItems": 1,
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  }
+                },
+                "required": ["id", "title", "description"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["question", "options"],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update_cooking_session",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "type": "string",
+          "enum": ["begin_preparation", "cooking_started", "plating_started", "meal_finished"]
+        },
+        "recipeId": {
+          "type": "string"
+        },
+        "completedStepIds": {
+          "maxItems": 150,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stageComplete": {
+          "type": "boolean"
+        },
+        "timers": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "enum": ["start", "cancel", "acknowledge"],
+                "description": "start creates a real countdown; cancel stops one; acknowledge clears an expired alert."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 86400,
+                "description": "Required for start: duration in seconds, e.g. 30 for thirty seconds."
+              },
+              "timerId": {
+                "type": "string"
+              }
+            },
+            "required": ["operation"],
+            "additionalProperties": false
+          },
+          "description": "Execute requested countdown changes here. For two timers: [{operation:\"start\",label:\"eggs\",seconds:30},{operation:\"start\",label:\"toast\",seconds:45}]. Use the final corrected duration. An empty call only reads status and creates nothing."
+        },
+        "replaceConfirmed": {
+          "type": "boolean"
+        },
+        "cancelTimersConfirmed": {
+          "type": "boolean"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update_brief",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "patch": {
+          "type": "object",
+          "properties": {
+            "availableIngredients": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confirmedStaples": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "unavailableIngredients": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "dietaryExclusions": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "equipment": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "preferences": {
+              "anyOf": [
+                {
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "servings": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "timeMinutes": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1440
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "craving": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["patch"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "propose_ingredients",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "plans": {
+          "minItems": 1,
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 150
+              },
+              "servings": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "ingredients": {
+                "minItems": 1,
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150
+                    },
+                    "amount": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100000
+                    },
+                    "unit": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    }
+                  },
+                  "required": ["name", "amount", "unit"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["title", "servings", "ingredients"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["plans"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "propose_recipes",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "planId": {
+          "type": "string",
+          "enum": ["plan:0", "plan:1"]
+        },
+        "recipes": {
+          "minItems": 1,
+          "maxItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 150
+              },
+              "servings": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "ingredients": {
+                "minItems": 1,
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 150
+                    },
+                    "amount": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "maximum": 100000
+                    },
+                    "unit": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
+                    }
+                  },
+                  "required": ["name", "amount", "unit"],
+                  "additionalProperties": false
+                }
+              },
+              "steps": {
+                "maxItems": 150,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "stage": {
+                      "type": "string",
+                      "enum": ["prep", "cook", "plate"],
+                      "description": "prep: gather, measure, wash or chop without heat. cook: every heating action, including bringing water to a boil or heating a pan. plate: serve and arrange. Cold recipes omit cook."
+                    },
+                    "instruction": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    }
+                  },
+                  "required": ["id", "stage", "instruction"],
+                  "additionalProperties": false
+                },
+                "description": "The complete ordered method, not a partial list of changed steps. Empty until ingredients are agreed. Include prep and plate; all heating belongs to cook."
+              },
+              "notes": {
+                "type": "string",
+                "maxLength": 12000
+              }
+            },
+            "required": ["title", "servings", "ingredients", "steps"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["planId", "recipes"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "check_ingredients",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "recipeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100000
+        },
+        "checks": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              },
+              "availability": {
+                "type": "string",
+                "enum": ["unknown", "yes", "no"]
+              }
+            },
+            "required": ["index", "availability"],
+            "additionalProperties": false
+          }
+        },
+        "accept": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": ["recipeId", "fingerprint", "checks", "accept"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "save_recipe",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 150
+            },
+            "servings": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "ingredients": {
+              "minItems": 1,
+              "maxItems": 100,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 150
+                  },
+                  "amount": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100000
+                  },
+                  "unit": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": ["name", "amount", "unit"],
+                "additionalProperties": false
+              }
+            },
+            "steps": {
+              "maxItems": 150,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "stage": {
+                    "type": "string",
+                    "enum": ["prep", "cook", "plate"],
+                    "description": "prep: gather, measure, wash or chop without heat. cook: every heating action, including bringing water to a boil or heating a pan. plate: serve and arrange. Cold recipes omit cook."
+                  },
+                  "instruction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": ["id", "stage", "instruction"],
+                "additionalProperties": false
+              },
+              "description": "The complete ordered method, not a partial list of changed steps. Empty until ingredients are agreed. Include prep and plate; all heating belongs to cook."
+            },
+            "notes": {
+              "type": "string",
+              "maxLength": 12000
+            }
+          },
+          "required": ["title", "servings", "ingredients", "steps"],
+          "additionalProperties": false
+        },
+        "recipeId": {
+          "type": "string"
+        },
+        "reconciled": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": ["recipe", "reconciled"],
+      "additionalProperties": false
+    }
+  }
+]

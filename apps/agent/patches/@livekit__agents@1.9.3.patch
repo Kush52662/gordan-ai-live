@@ -1,0 +1,192 @@
+--- a/src/voice/agent_activity.ts
++++ b/src/voice/agent_activity.ts
+@@ -2034,6 +2034,7 @@
+         transcript: ev.transcript,
+         isFinal: ev.isFinal,
+         itemId: ev.itemId,
++        createdAt: ev.turnStartedAt,
+       }),
+     );
+ 
+--- a/dist/voice/agent_activity.js
++++ b/dist/voice/agent_activity.js
+@@ -1419,7 +1419,8 @@
+       createUserInputTranscribedEvent({
+         transcript: ev.transcript,
+         isFinal: ev.isFinal,
+-        itemId: ev.itemId
++        itemId: ev.itemId,
++        createdAt: ev.turnStartedAt
+       })
+     );
+     if (ev.isFinal) {
+--- a/dist/voice/agent_activity.cjs
++++ b/dist/voice/agent_activity.cjs
+@@ -1366,7 +1366,8 @@
+       (0, import_events.createUserInputTranscribedEvent)({
+         transcript: ev.transcript,
+         isFinal: ev.isFinal,
+-        itemId: ev.itemId
++        itemId: ev.itemId,
++        createdAt: ev.turnStartedAt
+       })
+     );
+     if (ev.isFinal) {
+--- a/src/voice/room_io/_output.ts
++++ b/src/voice/room_io/_output.ts
+@@ -172,6 +172,11 @@
+ }
+ 
+ export class ParticipantTranscriptionOutput extends BaseParticipantTranscriptionOutput {
++  private inputTiming?: { startedAt: number; itemId: string | null };
++  private pendingInputTiming?: { startedAt: number; itemId: string | null };
++  setInputTiming(startedAt: number, itemId: string | null) {
++    this.pendingInputTiming = { startedAt, itemId };
++  }
+   private writer: TextStreamWriter | null = null;
+   private flushTask: Task<void> | null = null;
+   private jsonFormat: boolean;
+@@ -202,6 +207,8 @@
+       await this.flushTask.result;
+     }
+ 
++    this.inputTiming = this.pendingInputTiming;
++    this.pendingInputTiming = undefined;
+     if (!this.capturing) {
+       this.resetState();
+       this.capturing = true;
+@@ -331,6 +338,10 @@
+       }
+     }
+     attributes[ATTRIBUTE_TRANSCRIPTION_SEGMENT_ID] = this.currentId;
++    if (this.inputTiming) {
++      attributes['gordon.turn_started_at'] = String(this.inputTiming.startedAt);
++      if (this.inputTiming.itemId) attributes['gordon.input_item_id'] = this.inputTiming.itemId;
++    }
+     // overlaid rather than replacing, so the caller can add a key without dropping the
+     // transcription attributes the protocol requires
+     if (extra) {
+--- a/dist/voice/room_io/_output.js
++++ b/dist/voice/room_io/_output.js
+@@ -103,6 +103,11 @@
+   }
+ }
+ class ParticipantTranscriptionOutput extends BaseParticipantTranscriptionOutput {
++  inputTiming;
++  pendingInputTiming;
++  setInputTiming(startedAt, itemId) {
++    this.pendingInputTiming = { startedAt, itemId };
++  }
+   writer = null;
+   flushTask = null;
+   jsonFormat;
+@@ -124,6 +129,8 @@
+     if (this.flushTask && !this.flushTask.done) {
+       await this.flushTask.result;
+     }
++    this.inputTiming = this.pendingInputTiming;
++    this.pendingInputTiming = undefined;
+     if (!this.capturing) {
+       this.resetState();
+       this.capturing = true;
+@@ -217,6 +224,10 @@
+       }
+     }
+     attributes[ATTRIBUTE_TRANSCRIPTION_SEGMENT_ID] = this.currentId;
++    if (this.inputTiming) {
++      attributes['gordon.turn_started_at'] = String(this.inputTiming.startedAt);
++      if (this.inputTiming.itemId) attributes['gordon.input_item_id'] = this.inputTiming.itemId;
++    }
+     if (extra) {
+       Object.assign(attributes, extra);
+     }
+--- a/dist/voice/room_io/_output.cjs
++++ b/dist/voice/room_io/_output.cjs
+@@ -110,6 +110,11 @@
+   }
+ }
+ class ParticipantTranscriptionOutput extends BaseParticipantTranscriptionOutput {
++  inputTiming;
++  pendingInputTiming;
++  setInputTiming(startedAt, itemId) {
++    this.pendingInputTiming = { startedAt, itemId };
++  }
+   writer = null;
+   flushTask = null;
+   jsonFormat;
+@@ -131,6 +136,8 @@
+     if (this.flushTask && !this.flushTask.done) {
+       await this.flushTask.result;
+     }
++    this.inputTiming = this.pendingInputTiming;
++    this.pendingInputTiming = undefined;
+     if (!this.capturing) {
+       this.resetState();
+       this.capturing = true;
+@@ -224,6 +231,10 @@
+       }
+     }
+     attributes[import_constants.ATTRIBUTE_TRANSCRIPTION_SEGMENT_ID] = this.currentId;
++    if (this.inputTiming) {
++      attributes['gordon.turn_started_at'] = String(this.inputTiming.startedAt);
++      if (this.inputTiming.itemId) attributes['gordon.input_item_id'] = this.inputTiming.itemId;
++    }
+     if (extra) {
+       Object.assign(attributes, extra);
+     }
+--- a/src/voice/room_io/room_io.ts
++++ b/src/voice/room_io/room_io.ts
+@@ -419,6 +419,9 @@
+         if (done) break;
+ 
+         const event = value;
++        for (const sink of this.userTranscriptOutput?._sinks ?? []) {
++          if (sink instanceof ParticipantTranscriptionOutput) sink.setInputTiming(event.createdAt, event.itemId);
++        }
+         // IMPORTANT: need to await here to avoid race condition
+         await this.userTranscriptOutput?.captureText(event.transcript);
+         if (event.isFinal) {
+--- a/dist/voice/room_io/room_io.js
++++ b/dist/voice/room_io/room_io.js
+@@ -285,6 +285,9 @@
+         const { done, value } = await reader.read();
+         if (done) break;
+         const event = value;
++        for (const sink of this.userTranscriptOutput?._sinks ?? []) {
++          if (sink instanceof ParticipantTranscriptionOutput) sink.setInputTiming(event.createdAt, event.itemId);
++        }
+         await ((_a = this.userTranscriptOutput) == null ? void 0 : _a.captureText(event.transcript));
+         if (event.isFinal) {
+           (_b = this.userTranscriptOutput) == null ? void 0 : _b.flush();
+--- a/dist/voice/room_io/room_io.cjs
++++ b/dist/voice/room_io/room_io.cjs
+@@ -292,6 +292,9 @@
+         const { done, value } = await reader.read();
+         if (done) break;
+         const event = value;
++        for (const sink of this.userTranscriptOutput?._sinks ?? []) {
++          if (sink instanceof import_output.ParticipantTranscriptionOutput) sink.setInputTiming(event.createdAt, event.itemId);
++        }
+         await ((_a = this.userTranscriptOutput) == null ? void 0 : _a.captureText(event.transcript));
+         if (event.isFinal) {
+           (_b = this.userTranscriptOutput) == null ? void 0 : _b.flush();
+--- a/dist/voice/room_io/_output.d.ts
++++ b/dist/voice/room_io/_output.d.ts
+@@ -43,6 +43,7 @@
+     jsonFormat?: boolean;
+ }
+ export declare class ParticipantTranscriptionOutput extends BaseParticipantTranscriptionOutput {
++    setInputTiming(startedAt: number, itemId: string | null): void;
+     private writer;
+     private flushTask;
+     private jsonFormat;
+--- a/dist/voice/room_io/_output.d.cts
++++ b/dist/voice/room_io/_output.d.cts
+@@ -43,6 +43,7 @@
+     jsonFormat?: boolean;
+ }
+ export declare class ParticipantTranscriptionOutput extends BaseParticipantTranscriptionOutput {
++    setInputTiming(startedAt: number, itemId: string | null): void;
+     private writer;
+     private flushTask;
+     private jsonFormat;

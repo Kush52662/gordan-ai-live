@@ -1,0 +1,618 @@
+diff --git a/dist/components/textStream.d.ts b/dist/components/textStream.d.ts
+--- a/dist/components/textStream.d.ts
++++ b/dist/components/textStream.d.ts
+@@ -6,6 +6,7 @@
+         identity: string;
+     };
+     streamInfo: TextStreamInfo;
++    firstReceivedTime: number;
+ }
+ export declare function setupTextStream(room: Room, topic: string): Observable<TextStreamData[]>;
+ //# sourceMappingURL=textStream.d.ts.map
+\ No newline at end of file
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -2250,68 +2250,88 @@
+   return `${roomId}:${topic}`;
+ }
+ function setupTextStream(room, topic) {
+-  const cacheKey = getCacheKey(room, topic);
+-  const observableCache = getObservableCache();
+-  const existingObservable = observableCache.get(cacheKey);
+-  if (existingObservable) {
+-    return existingObservable;
+-  }
+-  const textStreamsSubject = new import_rxjs10.Subject();
+-  let textStreams = [];
+-  const segmentAttribute = "lk.segment_id" /* TranscriptionSegmentId */;
+-  const sharedObservable = textStreamsSubject.pipe(
+-    (0, import_operators.tap)({
+-      subscribe: () => {
+-        room.registerTextStreamHandler(topic, (reader, participantInfo) => __async(null, null, function* () {
+-          var _a;
+-          const streamObservable = (0, import_rxjs10.from)(reader).pipe(
+-            (0, import_rxjs10.scan)((acc, chunk2) => {
+-              return acc + chunk2;
+-            }, "")
+-          );
+-          const isTranscription = !!((_a = reader.info.attributes) == null ? void 0 : _a[segmentAttribute]);
+-          streamObservable.subscribe((accumulatedText) => {
+-            const index = textStreams.findIndex(
+-              (stream) => {
+-                var _a2, _b;
+-                return stream.streamInfo.id === reader.info.id || isTranscription && ((_a2 = stream.streamInfo.attributes) == null ? void 0 : _a2[segmentAttribute]) === ((_b = reader.info.attributes) == null ? void 0 : _b[segmentAttribute]);
+-              }
+-            );
+-            if (index !== -1) {
+-              textStreams[index] = __spreadProps(__spreadValues({}, textStreams[index]), {
+-                text: accumulatedText,
+-                // Carry the latest streamInfo forward. Transcription updates for a
+-                // segment arrive as separate streams sharing the same lk.segment_id;
+-                // keeping the original streamInfo would freeze attributes that change
+-                // over the segment's lifetime — notably lk.transcription_final flipping
+-                // "false" -> "true" on the final user STT result.
+-                streamInfo: reader.info
+-              });
+-              textStreamsSubject.next([...textStreams]);
+-            } else {
+-              textStreams.push({
+-                text: accumulatedText,
+-                participantInfo,
+-                streamInfo: reader.info
+-              });
+-              textStreamsSubject.next([...textStreams]);
+-            }
+-          });
+-        }));
+-      },
+-      finalize: () => {
+-        room.unregisterTextStreamHandler(topic);
+-      }
+-    }),
+-    (0, import_operators.share)()
+-  );
+-  observableCache.set(cacheKey, sharedObservable);
+-  room.on(import_livekit_client14.RoomEvent.Disconnected, () => {
+-    getObservableCache().delete(cacheKey);
+-    textStreams = [];
+-    textStreamsSubject.next([]);
+-  });
+-  return sharedObservable;
++    const cacheKey = getCacheKey(room, topic);
++    const observableCache = getObservableCache();
++    // Check if we already have an observable for this room and topic
++    const existingObservable = observableCache.get(cacheKey);
++    if (existingObservable) {
++        return existingObservable;
++    }
++    const textStreamsSubject = new import_rxjs10.Subject();
++    let textStreams = [];
++    // The first time we become aware of a stream (its header arrives), keyed by the same
++    // identity used for de-duplication below — the transcription segment id when present,
++    // otherwise the stream id. Captured once and never overwritten, so create/update streams
++    // for the same segment import_operators.share the earliest time.
++    let firstReceivedTimes = new Map();
++    const segmentAttribute = "lk.segment_id";
++    // Emit a snapshot ordered chronologically by when each stream was first opened rather than
++    // by the order in which the first chunk happened to arrive. Streams whose text is delayed
++    // would otherwise sort after streams that streamed immediately, producing out-of-order
++    // transcriptions (e.g. an agent reply appearing before the user utterance it answered).
++    // Array#sort is stable, so streams sharing a timestamp keep their insertion order.
++    const emit = () => {
++        textStreamsSubject.next(textStreams.slice().sort((a, b) => a.firstReceivedTime - b.firstReceivedTime));
++    };
++    // Create shared observable and store in cache
++    const sharedObservable = textStreamsSubject.pipe(import_operators.tap({
++        subscribe: () => {
++            room.registerTextStreamHandler(topic, async (reader, participantInfo) => {
++                // Create an observable import_rxjs10.from the reader
++                const streamObservable = import_rxjs10.from(reader).pipe(import_rxjs10.scan((acc, chunk) => {
++                    return acc + chunk;
++                }, ''));
++                const isTranscription = !!reader.info.attributes?.[segmentAttribute];
++                // Capture when this stream was first opened — now, before any text has streamed in —
++                // so ordering is unaffected by how quickly each stream's text arrives.
++                const streamKey = (isTranscription ? reader.info.attributes?.[segmentAttribute] : undefined) ??
++                    reader.info.id;
++                if (!firstReceivedTimes.has(streamKey)) {
++                    firstReceivedTimes.set(streamKey, Date.now());
++                }
++                const firstReceivedTime = firstReceivedTimes.get(streamKey);
++                // Subscribe to the stream and update our array when new chunks arrive
++                streamObservable.subscribe((accumulatedText) => {
++                    // Find and update the stream in our array
++                    const index = textStreams.findIndex((stream) => stream.streamInfo.id === reader.info.id ||
++                        (isTranscription &&
++                            stream.streamInfo.attributes?.[segmentAttribute] ===
++                                reader.info.attributes?.[segmentAttribute]));
++                    if (index !== -1) {
++                        textStreams[index] = {
++                            ...textStreams[index],
++                            text: accumulatedText,
++                        };
++                        // Emit the updated array
++                        emit();
++                    }
++                    else {
++                        // Handle case where stream ID wasn't found (new stream)
++                        textStreams.push({
++                            text: accumulatedText,
++                            participantInfo,
++                            streamInfo: reader.info,
++                            firstReceivedTime,
++                        });
++                        // Emit the updated array with the new stream
++                        emit();
++                    }
++                });
++            });
++        },
++        finalize: () => {
++            room.unregisterTextStreamHandler(topic);
++        },
++    }), import_operators.share());
++    observableCache.set(cacheKey, sharedObservable);
++    // Add cleanup when room is disconnected
++    room.on(import_livekit_client14.RoomEvent.Disconnected, () => {
++        getObservableCache().delete(cacheKey);
++        textStreams = [];
++        firstReceivedTimes = new Map();
++        textStreamsSubject.next([]);
++    });
++    return sharedObservable;
+ }
+ // Annotate the CommonJS export names for ESM import in node:
+ 0 && (module.exports = {
+diff --git a/dist/index.mjs b/dist/index.mjs
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -2139,68 +2139,88 @@
+   return `${roomId}:${topic}`;
+ }
+ function setupTextStream(room, topic) {
+-  const cacheKey = getCacheKey(room, topic);
+-  const observableCache = getObservableCache();
+-  const existingObservable = observableCache.get(cacheKey);
+-  if (existingObservable) {
+-    return existingObservable;
+-  }
+-  const textStreamsSubject = new Subject3();
+-  let textStreams = [];
+-  const segmentAttribute = "lk.segment_id" /* TranscriptionSegmentId */;
+-  const sharedObservable = textStreamsSubject.pipe(
+-    tap({
+-      subscribe: () => {
+-        room.registerTextStreamHandler(topic, (reader, participantInfo) => __async(null, null, function* () {
+-          var _a;
+-          const streamObservable = from2(reader).pipe(
+-            scan2((acc, chunk2) => {
+-              return acc + chunk2;
+-            }, "")
+-          );
+-          const isTranscription = !!((_a = reader.info.attributes) == null ? void 0 : _a[segmentAttribute]);
+-          streamObservable.subscribe((accumulatedText) => {
+-            const index = textStreams.findIndex(
+-              (stream) => {
+-                var _a2, _b;
+-                return stream.streamInfo.id === reader.info.id || isTranscription && ((_a2 = stream.streamInfo.attributes) == null ? void 0 : _a2[segmentAttribute]) === ((_b = reader.info.attributes) == null ? void 0 : _b[segmentAttribute]);
+-              }
+-            );
+-            if (index !== -1) {
+-              textStreams[index] = __spreadProps(__spreadValues({}, textStreams[index]), {
+-                text: accumulatedText,
+-                // Carry the latest streamInfo forward. Transcription updates for a
+-                // segment arrive as separate streams sharing the same lk.segment_id;
+-                // keeping the original streamInfo would freeze attributes that change
+-                // over the segment's lifetime — notably lk.transcription_final flipping
+-                // "false" -> "true" on the final user STT result.
+-                streamInfo: reader.info
+-              });
+-              textStreamsSubject.next([...textStreams]);
+-            } else {
+-              textStreams.push({
+-                text: accumulatedText,
+-                participantInfo,
+-                streamInfo: reader.info
+-              });
+-              textStreamsSubject.next([...textStreams]);
+-            }
+-          });
+-        }));
+-      },
+-      finalize: () => {
+-        room.unregisterTextStreamHandler(topic);
+-      }
+-    }),
+-    share()
+-  );
+-  observableCache.set(cacheKey, sharedObservable);
+-  room.on(RoomEvent6.Disconnected, () => {
+-    getObservableCache().delete(cacheKey);
+-    textStreams = [];
+-    textStreamsSubject.next([]);
+-  });
+-  return sharedObservable;
++    const cacheKey = getCacheKey(room, topic);
++    const observableCache = getObservableCache();
++    // Check if we already have an observable for this room and topic
++    const existingObservable = observableCache.get(cacheKey);
++    if (existingObservable) {
++        return existingObservable;
++    }
++    const textStreamsSubject = new Subject3();
++    let textStreams = [];
++    // The first time we become aware of a stream (its header arrives), keyed by the same
++    // identity used for de-duplication below — the transcription segment id when present,
++    // otherwise the stream id. Captured once and never overwritten, so create/update streams
++    // for the same segment share the earliest time.
++    let firstReceivedTimes = new Map();
++    const segmentAttribute = "lk.segment_id";
++    // Emit a snapshot ordered chronologically by when each stream was first opened rather than
++    // by the order in which the first chunk happened to arrive. Streams whose text is delayed
++    // would otherwise sort after streams that streamed immediately, producing out-of-order
++    // transcriptions (e.g. an agent reply appearing before the user utterance it answered).
++    // Array#sort is stable, so streams sharing a timestamp keep their insertion order.
++    const emit = () => {
++        textStreamsSubject.next(textStreams.slice().sort((a, b) => a.firstReceivedTime - b.firstReceivedTime));
++    };
++    // Create shared observable and store in cache
++    const sharedObservable = textStreamsSubject.pipe(tap({
++        subscribe: () => {
++            room.registerTextStreamHandler(topic, async (reader, participantInfo) => {
++                // Create an observable from2 the reader
++                const streamObservable = from2(reader).pipe(scan2((acc, chunk) => {
++                    return acc + chunk;
++                }, ''));
++                const isTranscription = !!reader.info.attributes?.[segmentAttribute];
++                // Capture when this stream was first opened — now, before any text has streamed in —
++                // so ordering is unaffected by how quickly each stream's text arrives.
++                const streamKey = (isTranscription ? reader.info.attributes?.[segmentAttribute] : undefined) ??
++                    reader.info.id;
++                if (!firstReceivedTimes.has(streamKey)) {
++                    firstReceivedTimes.set(streamKey, Date.now());
++                }
++                const firstReceivedTime = firstReceivedTimes.get(streamKey);
++                // Subscribe to the stream and update our array when new chunks arrive
++                streamObservable.subscribe((accumulatedText) => {
++                    // Find and update the stream in our array
++                    const index = textStreams.findIndex((stream) => stream.streamInfo.id === reader.info.id ||
++                        (isTranscription &&
++                            stream.streamInfo.attributes?.[segmentAttribute] ===
++                                reader.info.attributes?.[segmentAttribute]));
++                    if (index !== -1) {
++                        textStreams[index] = {
++                            ...textStreams[index],
++                            text: accumulatedText,
++                        };
++                        // Emit the updated array
++                        emit();
++                    }
++                    else {
++                        // Handle case where stream ID wasn't found (new stream)
++                        textStreams.push({
++                            text: accumulatedText,
++                            participantInfo,
++                            streamInfo: reader.info,
++                            firstReceivedTime,
++                        });
++                        // Emit the updated array with the new stream
++                        emit();
++                    }
++                });
++            });
++        },
++        finalize: () => {
++            room.unregisterTextStreamHandler(topic);
++        },
++    }), share());
++    observableCache.set(cacheKey, sharedObservable);
++    // Add cleanup when room is disconnected
++    room.on(RoomEvent6.Disconnected, () => {
++        getObservableCache().delete(cacheKey);
++        textStreams = [];
++        firstReceivedTimes = new Map();
++        textStreamsSubject.next([]);
++    });
++    return sharedObservable;
+ }
+ export {
+   DataTopic,
+diff --git a/src/components/textStream.test.ts b/src/components/textStream.test.ts
+new file mode 100644
+--- /dev/null
++++ b/src/components/textStream.test.ts
+@@ -0,0 +1,195 @@
++import type { Room, TextStreamInfo, TextStreamReader } from 'livekit-client';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { ParticipantAgentAttributes } from '../helper';
++import { setupTextStream, type TextStreamData } from './textStream';
++
++const SEGMENT_ATTR = ParticipantAgentAttributes.TranscriptionSegmentId;
++const TOPIC = 'lk.transcription';
++
++type StreamHandler = (
++  reader: TextStreamReader,
++  participantInfo: { identity: string },
++) => void | Promise<void>;
++
++/**
++ * An async-iterable stand-in for a `TextStreamReader` whose text only flows once `release()`
++ * is called. This lets a test open several streams (capturing their first-received time) and
++ * then deliver their text in a different order than they were opened.
++ */
++class ControllableStream {
++  info: TextStreamInfo;
++  private chunks: string[];
++  private gate: Promise<void>;
++  private openGate!: () => void;
++
++  constructor(info: TextStreamInfo, chunks: string[]) {
++    this.info = info;
++    this.chunks = chunks;
++    this.gate = new Promise<void>((resolve) => {
++      this.openGate = resolve;
++    });
++  }
++
++  /** Let this stream's text start flowing. */
++  release() {
++    this.openGate();
++  }
++
++  async *[Symbol.asyncIterator]() {
++    await this.gate;
++    for (const chunk of this.chunks) {
++      yield chunk;
++    }
++  }
++}
++
++function transcriptionInfo(id: string, segmentId: string, timestamp: number): TextStreamInfo {
++  return {
++    id,
++    topic: TOPIC,
++    timestamp,
++    mimeType: 'text/plain',
++    attributes: { [SEGMENT_ATTR]: segmentId },
++  } as unknown as TextStreamInfo;
++}
++
++function createMockRoom() {
++  let handler: StreamHandler | undefined;
++  const room = {
++    registerTextStreamHandler: (_topic: string, cb: StreamHandler) => {
++      handler = cb;
++    },
++    unregisterTextStreamHandler: () => {
++      handler = undefined;
++    },
++    on: () => room,
++    off: () => room,
++  };
++  return {
++    room: room as unknown as Room,
++    open(stream: ControllableStream, identity: string) {
++      if (!handler) throw new Error('no text stream handler registered yet');
++      return handler(stream as unknown as TextStreamReader, { identity });
++    },
++  };
++}
++
++/** Let queued microtasks (async-iterator pulls) settle. */
++const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
++
++describe('setupTextStream ordering', () => {
++  let now = 0;
++
++  beforeEach(() => {
++    now = 1_000;
++    vi.spyOn(Date, 'now').mockImplementation(() => now);
++  });
++
++  afterEach(() => {
++    vi.restoreAllMocks();
++  });
++
++  it('orders by first receipt of the segment, not by when its text finishes streaming (issue #1280)', async () => {
++    const { room, open } = createMockRoom();
++    const emissions: Array<Array<TextStreamData>> = [];
++    const sub = setupTextStream(room, TOPIC).subscribe((streams) => emissions.push(streams));
++
++    // The user speaks first, so their transcription stream is opened first...
++    now = 1_000;
++    const user = new ControllableStream(transcriptionInfo('user-1', 'seg-user', 1_000), ['Hello']);
++    open(user, 'user');
++
++    // ...then the agent replies, opening its stream a moment later.
++    now = 2_000;
++    const agent = new ControllableStream(transcriptionInfo('agent-1', 'seg-agent', 2_000), [
++      'Hi there!',
++    ]);
++    open(agent, 'agent');
++
++    // But the agent's text streams in immediately while the user's transcript lags behind.
++    agent.release();
++    await flush();
++    user.release();
++    await flush();
++
++    const final = emissions.at(-1)!;
++    expect(final.map((s) => s.participantInfo.identity)).toEqual(['user', 'agent']);
++    expect(final.map((s) => s.text)).toEqual(['Hello', 'Hi there!']);
++
++    sub.unsubscribe();
++  });
++
++  it('orders by local first-received time, not the sender-stamped timestamp (DL clock drift)', async () => {
++    const { room, open } = createMockRoom();
++    const emissions: Array<Array<TextStreamData>> = [];
++    const sub = setupTextStream(room, TOPIC).subscribe((streams) => emissions.push(streams));
++
++    // First message opened locally, but its sender's clock is running far ahead (timestamp 9000).
++    now = 1_000;
++    const first = new ControllableStream(transcriptionInfo('first-1', 'seg-first', 9_000), [
++      'first',
++    ]);
++    open(first, 'participant-a');
++
++    // Second message opened locally later, but carries an earlier sender timestamp (1000).
++    now = 2_000;
++    const second = new ControllableStream(transcriptionInfo('second-1', 'seg-second', 1_000), [
++      'second',
++    ]);
++    open(second, 'participant-b');
++
++    // Deliver text in reverse order of opening. Insertion order would give [second, first];
++    // sorting by the sender timestamp would also give [second, first]. Only first-received
++    // ordering yields the chronological [first, second].
++    second.release();
++    await flush();
++    first.release();
++    await flush();
++
++    const final = emissions.at(-1)!;
++    expect(final.map((s) => s.text)).toEqual(['first', 'second']);
++
++    sub.unsubscribe();
++  });
++
++  it('keeps a transcription in place (and updates its text) when a later segment update arrives', async () => {
++    const { room, open } = createMockRoom();
++    const emissions: Array<Array<TextStreamData>> = [];
++    const sub = setupTextStream(room, TOPIC).subscribe((streams) => emissions.push(streams));
++
++    // A transcription segment is created first.
++    now = 1_000;
++    const create = new ControllableStream(transcriptionInfo('seg-a-create', 'seg-a', 1_000), [
++      'partial',
++    ]);
++    open(create, 'speaker');
++    create.release();
++    await flush();
++
++    // A second, unrelated transcription opens afterwards.
++    now = 2_000;
++    const other = new ControllableStream(transcriptionInfo('other-1', 'seg-other', 2_000), [
++      'other',
++    ]);
++    open(other, 'speaker-2');
++    other.release();
++    await flush();
++
++    // Now an update for the first segment arrives much later, as its own stream.
++    now = 5_000;
++    const update = new ControllableStream(transcriptionInfo('seg-a-update', 'seg-a', 5_000), [
++      'partial then final',
++    ]);
++    open(update, 'speaker');
++    update.release();
++    await flush();
++
++    const final = emissions.at(-1)!;
++    // The updated segment must keep its original (earlier) position rather than jumping to the end.
++    expect(final.map((s) => s.participantInfo.identity)).toEqual(['speaker', 'speaker-2']);
++    expect(final[0].text).toBe('partial then final');
++    expect(final[0].streamInfo.attributes?.[SEGMENT_ATTR]).toBe('seg-a');
++
++    sub.unsubscribe();
++  });
++});
+diff --git a/src/components/textStream.ts b/src/components/textStream.ts
+--- a/src/components/textStream.ts
++++ b/src/components/textStream.ts
+@@ -7,6 +7,14 @@
+   text: string;
+   participantInfo: { identity: string }; // Replace with the correct type from livekit-client
+   streamInfo: TextStreamInfo;
++  /**
++   * Client-side timestamp (ms since epoch) captured the moment this stream was first opened,
++   * before any text arrived. Used for chronological ordering: unlike `streamInfo.timestamp`
++   * (stamped by the sender's clock) this is sampled from a single local clock, so it stays
++   * comparable across streams from different senders, and unlike insertion order it is immune
++   * to text that streams in late.
++   */
++  firstReceivedTime: number;
+ }
+ 
+ // Singleton getters for lazy initialization
+@@ -56,8 +64,24 @@
+ 
+   const textStreamsSubject = new Subject<TextStreamData[]>();
+   let textStreams: TextStreamData[] = [];
++  // The first time we become aware of a stream (its header arrives), keyed by the same
++  // identity used for de-duplication below — the transcription segment id when present,
++  // otherwise the stream id. Captured once and never overwritten, so create/update streams
++  // for the same segment share the earliest time.
++  let firstReceivedTimes = new Map<string, number>();
+ 
+   const segmentAttribute = ParticipantAgentAttributes.TranscriptionSegmentId;
++
++  // Emit a snapshot ordered chronologically by when each stream was first opened rather than
++  // by the order in which the first chunk happened to arrive. Streams whose text is delayed
++  // would otherwise sort after streams that streamed immediately, producing out-of-order
++  // transcriptions (e.g. an agent reply appearing before the user utterance it answered).
++  // Array#sort is stable, so streams sharing a timestamp keep their insertion order.
++  const emit = () => {
++    textStreamsSubject.next(
++      textStreams.slice().sort((a, b) => a.firstReceivedTime - b.firstReceivedTime),
++    );
++  };
+ 
+   // Create shared observable and store in cache
+   const sharedObservable = textStreamsSubject.pipe(
+@@ -73,6 +97,16 @@
+ 
+           const isTranscription = !!reader.info.attributes?.[segmentAttribute];
+ 
++          // Capture when this stream was first opened — now, before any text has streamed in —
++          // so ordering is unaffected by how quickly each stream's text arrives.
++          const streamKey =
++            (isTranscription ? reader.info.attributes?.[segmentAttribute] : undefined) ??
++            reader.info.id;
++          if (!firstReceivedTimes.has(streamKey)) {
++            firstReceivedTimes.set(streamKey, Date.now());
++          }
++          const firstReceivedTime = firstReceivedTimes.get(streamKey)!;
++
+           // Subscribe to the stream and update our array when new chunks arrive
+           streamObservable.subscribe((accumulatedText) => {
+             // Find and update the stream in our array
+@@ -87,26 +121,21 @@
+               textStreams[index] = {
+                 ...textStreams[index],
+                 text: accumulatedText,
+-                // Carry the latest streamInfo forward. Transcription updates for a
+-                // segment arrive as separate streams sharing the same lk.segment_id;
+-                // keeping the original streamInfo would freeze attributes that change
+-                // over the segment's lifetime — notably lk.transcription_final flipping
+-                // "false" -> "true" on the final user STT result.
+-                streamInfo: reader.info,
+               };
+ 
+               // Emit the updated array
+-              textStreamsSubject.next([...textStreams]);
++              emit();
+             } else {
+               // Handle case where stream ID wasn't found (new stream)
+               textStreams.push({
+                 text: accumulatedText,
+                 participantInfo,
+                 streamInfo: reader.info,
++                firstReceivedTime,
+               });
+ 
+               // Emit the updated array with the new stream
+-              textStreamsSubject.next([...textStreams]);
++              emit();
+             }
+           });
+         });
+@@ -124,6 +153,7 @@
+   room.on(RoomEvent.Disconnected, () => {
+     getObservableCache().delete(cacheKey);
+     textStreams = [];
++    firstReceivedTimes = new Map();
+     textStreamsSubject.next([]);
+   });
+ 

@@ -1,0 +1,24 @@
+node_modules/
+.next/
+.next-*/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+.env*
+!.env.example
+!.env.template
+*.pem
+*.key
+*service-account*.json
+.pnpm-store/
+
+# Local UAT state
+.gordon-data/
+
+# Local assignment and implementation planning
+/ASSIGNMENT.md
+/PLAN.md
+
+# Runtime logs and generated reports
+*.log

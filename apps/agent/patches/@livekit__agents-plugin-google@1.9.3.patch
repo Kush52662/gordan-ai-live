@@ -1,0 +1,260 @@
+diff --git a/dist/realtime/realtime_api.cjs b/dist/realtime/realtime_api.cjs
+index 4e02ddf00db07e1ad4d8e5af25bd21b286eb8347..89f3cab753cbb3ca50587d7d4e9eb2884e1b2191 100644
+--- a/dist/realtime/realtime_api.cjs
++++ b/dist/realtime/realtime_api.cjs
+@@ -324,7 +324,9 @@ class RealtimeSession extends import_agents.llm.RealtimeSession {
+           response: { output: item.output }
+         };
+         if (!vertexai && this.options.toolResponseScheduling !== void 0) {
+-          response.scheduling = this.options.toolResponseScheduling;
++          response.scheduling = typeof this.options.toolResponseScheduling === "function"
++            ? this.options.toolResponseScheduling(item.name, item.output)
++            : this.options.toolResponseScheduling;
+         }
+         this.toolResponseCallIds.set(response, item.callId);
+         const status = this.toolCallStatuses.get(item.callId);
+@@ -1175,7 +1177,8 @@ class RealtimeSession extends import_agents.llm.RealtimeSession {
+       this.emit("input_audio_transcription_completed", {
+         itemId: gen.inputId,
+         transcript: gen.inputTranscription,
+-        isFinal: false
++        isFinal: false,
++        turnStartedAt: gen._createdTimestamp
+       });
+     }
+     if (!discardOutput && serverContent.outputTranscription && serverContent.outputTranscription.text) {
+@@ -1234,8 +1237,9 @@ class RealtimeSession extends import_agents.llm.RealtimeSession {
+           response: {},
+           willContinue: true
+         };
+-        if (!this.options.vertexai && this.options.toolResponseScheduling !== void 0) {
+-          continuingResponse.scheduling = this.options.toolResponseScheduling;
++        if (!this.options.vertexai) {
++          // Empty progress notifications must not initiate another spoken turn.
++          continuingResponse.scheduling = types.FunctionResponseScheduling.SILENT;
+         }
+         this.sendClientEvent({
+           type: "tool_response",
+@@ -1388,7 +1392,7 @@ class RealtimeSession extends import_agents.llm.RealtimeSession {
+       return true;
+     }
+     const serverContent = response.serverContent;
+-    return !!serverContent && (serverContent.modelTurn || serverContent.outputTranscription != null || serverContent.inputTranscription != null || serverContent.generationComplete != null || serverContent.turnComplete != null);
++    return !!serverContent && (serverContent.modelTurn || serverContent.outputTranscription != null || serverContent.inputTranscription != null);
+   }
+ }
+ // Annotate the CommonJS export names for ESM import in node:
+diff --git a/dist/realtime/realtime_api.d.cts b/dist/realtime/realtime_api.d.cts
+index d64a0297c8e16f4d8e8ad6676f51855fc8dadfa5..0390585b06e77d77796b84a3ebd3947d651f449b 100644
+--- a/dist/realtime/realtime_api.d.cts
++++ b/dist/realtime/realtime_api.d.cts
+@@ -66,7 +66,7 @@ interface RealtimeOptions {
+     geminiTools?: LLMTools;
+     thinkingConfig?: types.ThinkingConfig;
+     toolBehavior?: types.Behavior;
+-    toolResponseScheduling?: types.FunctionResponseScheduling;
++    toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+ }
+ /**
+  * Google Realtime Model for real-time voice conversations with Gemini models
+@@ -210,7 +210,7 @@ export declare class RealtimeModel extends llm.RealtimeModel {
+          * Note: Vertex AI currently does not support the scheduling parameter; the user is
+          * responsible for avoiding this parameter when using Vertex AI.
+          */
+-        toolResponseScheduling?: types.FunctionResponseScheduling;
++        toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+     });
+     /**
+      * Create a new realtime session
+@@ -223,7 +223,7 @@ export declare class RealtimeModel extends llm.RealtimeModel {
+         voice?: Voice | string;
+         temperature?: number;
+         toolBehavior?: types.Behavior;
+-        toolResponseScheduling?: types.FunctionResponseScheduling;
++        toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+     }): void;
+     /**
+      * Close the model and cleanup resources
+@@ -274,7 +274,7 @@ export declare class RealtimeSession extends llm.RealtimeSession {
+         temperature?: number;
+         toolChoice?: llm.ToolChoice;
+         toolBehavior?: types.Behavior;
+-        toolResponseScheduling?: types.FunctionResponseScheduling;
++        toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+     }): void;
+     updateInstructions(instructions: string): Promise<void>;
+     updateChatCtx(chatCtx: llm.ChatContext): Promise<void>;
+diff --git a/dist/realtime/realtime_api.d.ts b/dist/realtime/realtime_api.d.ts
+index d64a0297c8e16f4d8e8ad6676f51855fc8dadfa5..0390585b06e77d77796b84a3ebd3947d651f449b 100644
+--- a/dist/realtime/realtime_api.d.ts
++++ b/dist/realtime/realtime_api.d.ts
+@@ -66,7 +66,7 @@ interface RealtimeOptions {
+     geminiTools?: LLMTools;
+     thinkingConfig?: types.ThinkingConfig;
+     toolBehavior?: types.Behavior;
+-    toolResponseScheduling?: types.FunctionResponseScheduling;
++    toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+ }
+ /**
+  * Google Realtime Model for real-time voice conversations with Gemini models
+@@ -210,7 +210,7 @@ export declare class RealtimeModel extends llm.RealtimeModel {
+          * Note: Vertex AI currently does not support the scheduling parameter; the user is
+          * responsible for avoiding this parameter when using Vertex AI.
+          */
+-        toolResponseScheduling?: types.FunctionResponseScheduling;
++        toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+     });
+     /**
+      * Create a new realtime session
+@@ -223,7 +223,7 @@ export declare class RealtimeModel extends llm.RealtimeModel {
+         voice?: Voice | string;
+         temperature?: number;
+         toolBehavior?: types.Behavior;
+-        toolResponseScheduling?: types.FunctionResponseScheduling;
++        toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+     }): void;
+     /**
+      * Close the model and cleanup resources
+@@ -274,7 +274,7 @@ export declare class RealtimeSession extends llm.RealtimeSession {
+         temperature?: number;
+         toolChoice?: llm.ToolChoice;
+         toolBehavior?: types.Behavior;
+-        toolResponseScheduling?: types.FunctionResponseScheduling;
++        toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+     }): void;
+     updateInstructions(instructions: string): Promise<void>;
+     updateChatCtx(chatCtx: llm.ChatContext): Promise<void>;
+diff --git a/dist/realtime/realtime_api.js b/dist/realtime/realtime_api.js
+index 3ffd02d88b1ff5a813f7eaa3eab91227ab06280a..b4d527a7223e4c9c235bd1ee2ef62ae1ce400251 100644
+--- a/dist/realtime/realtime_api.js
++++ b/dist/realtime/realtime_api.js
+@@ -307,7 +307,9 @@ class RealtimeSession extends llm.RealtimeSession {
+           response: { output: item.output }
+         };
+         if (!vertexai && this.options.toolResponseScheduling !== void 0) {
+-          response.scheduling = this.options.toolResponseScheduling;
++          response.scheduling = typeof this.options.toolResponseScheduling === "function"
++            ? this.options.toolResponseScheduling(item.name, item.output)
++            : this.options.toolResponseScheduling;
+         }
+         this.toolResponseCallIds.set(response, item.callId);
+         const status = this.toolCallStatuses.get(item.callId);
+@@ -1158,7 +1160,8 @@ class RealtimeSession extends llm.RealtimeSession {
+       this.emit("input_audio_transcription_completed", {
+         itemId: gen.inputId,
+         transcript: gen.inputTranscription,
+-        isFinal: false
++        isFinal: false,
++        turnStartedAt: gen._createdTimestamp
+       });
+     }
+     if (!discardOutput && serverContent.outputTranscription && serverContent.outputTranscription.text) {
+@@ -1217,8 +1220,9 @@ class RealtimeSession extends llm.RealtimeSession {
+           response: {},
+           willContinue: true
+         };
+-        if (!this.options.vertexai && this.options.toolResponseScheduling !== void 0) {
+-          continuingResponse.scheduling = this.options.toolResponseScheduling;
++        if (!this.options.vertexai) {
++          // Empty progress notifications must not initiate another spoken turn.
++          continuingResponse.scheduling = types.FunctionResponseScheduling.SILENT;
+         }
+         this.sendClientEvent({
+           type: "tool_response",
+@@ -1371,7 +1375,7 @@ class RealtimeSession extends llm.RealtimeSession {
+       return true;
+     }
+     const serverContent = response.serverContent;
+-    return !!serverContent && (serverContent.modelTurn || serverContent.outputTranscription != null || serverContent.inputTranscription != null || serverContent.generationComplete != null || serverContent.turnComplete != null);
++    return !!serverContent && (serverContent.modelTurn || serverContent.outputTranscription != null || serverContent.inputTranscription != null);
+   }
+ }
+ export {
+diff --git a/src/realtime/realtime_api.ts b/src/realtime/realtime_api.ts
+index 09a6c3c923b4a74d6a62986f8ce1f9809abaa55a..887adc8cffb36a8742e19d425f6e2641e7451013 100644
+--- a/src/realtime/realtime_api.ts
++++ b/src/realtime/realtime_api.ts
+@@ -186,7 +186,7 @@ interface RealtimeOptions {
+   geminiTools?: LLMTools;
+   thinkingConfig?: types.ThinkingConfig;
+   toolBehavior?: types.Behavior;
+-  toolResponseScheduling?: types.FunctionResponseScheduling;
++  toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+ }
+ 
+ /**
+@@ -404,7 +404,7 @@ export class RealtimeModel extends llm.RealtimeModel {
+        * Note: Vertex AI currently does not support the scheduling parameter; the user is
+        * responsible for avoiding this parameter when using Vertex AI.
+        */
+-      toolResponseScheduling?: types.FunctionResponseScheduling;
++      toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+     } = {},
+   ) {
+     const inputAudioTranscription =
+@@ -506,7 +506,7 @@ export class RealtimeModel extends llm.RealtimeModel {
+     voice?: Voice | string;
+     temperature?: number;
+     toolBehavior?: types.Behavior;
+-    toolResponseScheduling?: types.FunctionResponseScheduling;
++    toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+   }): void {
+     if (options.voice !== undefined) {
+       this._options.voice = options.voice;
+@@ -672,7 +672,9 @@ export class RealtimeSession extends llm.RealtimeSession {
+ 
+         // Vertex AI does not support scheduling; the Gemini API defaults it to WHEN_IDLE.
+         if (!vertexai && this.options.toolResponseScheduling !== undefined) {
+-          response.scheduling = this.options.toolResponseScheduling;
++          response.scheduling = typeof this.options.toolResponseScheduling === 'function'
++            ? this.options.toolResponseScheduling(item.name, item.output)
++            : this.options.toolResponseScheduling;
+         }
+         this.toolResponseCallIds.set(response, item.callId);
+ 
+@@ -695,7 +697,7 @@ export class RealtimeSession extends llm.RealtimeSession {
+     temperature?: number;
+     toolChoice?: llm.ToolChoice;
+     toolBehavior?: types.Behavior;
+-    toolResponseScheduling?: types.FunctionResponseScheduling;
++    toolResponseScheduling?: types.FunctionResponseScheduling | ((name: string, output: unknown) => types.FunctionResponseScheduling);
+   }) {
+     let shouldRestart = false;
+ 
+@@ -1754,6 +1756,7 @@ export class RealtimeSession extends llm.RealtimeSession {
+         itemId: gen.inputId,
+         transcript: gen.inputTranscription,
+         isFinal: false,
++        turnStartedAt: gen._createdTimestamp,
+       } as llm.InputTranscriptionCompleted);
+     }
+ 
+@@ -1830,8 +1833,9 @@ export class RealtimeSession extends llm.RealtimeSession {
+           response: {},
+           willContinue: true,
+         };
+-        if (!this.options.vertexai && this.options.toolResponseScheduling !== undefined) {
+-          continuingResponse.scheduling = this.options.toolResponseScheduling;
++        if (!this.options.vertexai) {
++          // Empty progress notifications must not initiate another spoken turn.
++          continuingResponse.scheduling = types.FunctionResponseScheduling.SILENT;
+         }
+         this.sendClientEvent({
+           type: 'tool_response',
+@@ -2015,14 +2019,13 @@ export class RealtimeSession extends llm.RealtimeSession {
+       return true;
+     }
+ 
++    // Completion-only events close the tool generation; they are not user speech.
+     const serverContent = response.serverContent;
+     return (
+       !!serverContent &&
+       (serverContent.modelTurn ||
+         serverContent.outputTranscription != null ||
+-        serverContent.inputTranscription != null ||
+-        serverContent.generationComplete != null ||
+-        serverContent.turnComplete != null)
++        serverContent.inputTranscription != null)
+     );
+   }
+ }

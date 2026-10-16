@@ -1,0 +1,107 @@
+name: Gordon AI voice experience
+scenarios:
+  - label: Ingredient planning and acceptance before recipe generation
+    instructions: |
+      Ask for tomato pasta. After seeing the ingredient list, say which listed
+      ingredients you have and that one listed ingredient is missing. Ask for a
+      revised ingredient list. Confirm the revised quantities are all available,
+      but explicitly say "Don't finalize it yet." Then say "I accept these
+      ingredients; build the recipe." Review the generated instructions before
+      separately asking to begin preparation.
+    agent_expectations: >
+      First displays only a dish title, servings and quantified ingredients, with
+      no preparation, cooking or plating steps. Persists explicitly confirmed row
+      availability without assuming pantry staples are available. Revises the
+      ingredient plan for missing items and checks the revised quantities.
+      Availability alone does not authorize generating instructions. After explicit
+      acceptance, generates a complete method using the exact accepted ingredients
+      and quantities without asking the cook to accept the same list again.
+      Recipe generation alone does not start preparation or the elapsed clock.
+      Uses one continuous voice conversation.
+    tags:
+      feature: ingredient-acceptance
+
+  - label: Explore a craving without an intake interview
+    instructions: |
+      You are speaking English to a cooking companion. Say "I'm craving lobster,
+      but I don't know what to make." Discuss an idea, then change your mind:
+      "Actually, forget lobster. Something vegetarian and comforting."
+      Ask "Why would roasting taste different from boiling?" End after the explanation.
+    agent_expectations: >
+      Offers useful cooking ideas before conducting an intake interview. Follows
+      the change to vegetarian food, directly answers the technique question,
+      and never drags the caller back to lobster or an old saved meal. Sounds
+      like a concise, knowledgeable conversational partner rather than narrating tools.
+  - label: Hands busy, interruption and an independent timer
+    instructions: |
+      Speak English. Say "Set a timer called oven for twenty seconds. I'm not
+      following a saved recipe." When Gordon AI acknowledges it, say "While that's
+      going, why do onions turn sweet?" Interrupt a long explanation with
+      "Short version please." Wait for the timer alert, then acknowledge it.
+    agent_expectations: >
+      Sets a real timer without demanding a recipe or a meal setup. Answers the
+      onion question, yields to the interruption and shortens the explanation.
+      Announces the due oven timer without declaring any food cooked or marking
+      progress complete. Does not read internal IDs or storage details aloud.
+  - label: Natural cooking progress and return after a tangent
+    instructions: |
+      Speak English. Use a saved Simple rice recipe with rinsing and measuring
+      water as its preparation steps. Ask to open it. Confirm that you have all
+      listed quantities and explicitly accept its ingredient list, then ask to
+      start prep. Say "I've rinsed it and measured the water. I'm starting to cook now."
+      Ask why rinsing matters. Then ask "Where were we?" Finally say "It's cooked,
+      let's plate", followed by "Both bowls are plated, we're done."
+    agent_expectations: >
+      Resumes only when requested. Saves confirmed progress and starts the elapsed
+      clock when cooking starts without demanding exact command phrases or a
+      separate confirmation for every internal stage. Answers the tangent, then
+      helps return to cooking. Ends the clock after confirmed plating completion.
+
+  - label: Ingredient substitution invalidates the old cooking method
+    instructions: |
+      Use a saved recipe containing sugar in its syrup instructions. Open it,
+      confirm the listed quantities and accept its ingredients. Before starting
+      preparation, request agave instead of sugar. Review the revised ingredient
+      quantities, confirm availability and accept the new list. Ask Gordon AI to
+      update the cooking instructions before beginning preparation.
+    agent_expectations: >
+      Treats the substitution as an ingredient-plan change rather than a name-only
+      replacement. Reviews affected liquid quantities and syrup instructions,
+      states relevant uncertainty and does not assume a one-to-one substitution.
+      Invalidates the old ingredient approval and marks the old method as needing
+      reconciliation. Reaccepting ingredients alone does not make stale cooking
+      instructions ready. Reconciles the method with the newly accepted quantities
+      before preparation and does not start the elapsed cooking clock early.
+    tags:
+      feature: recipe-reconciliation
+
+  - label: Local tools do not create repeated spoken announcements
+    instructions: |
+      Ask for a tomato pasta ingredient plan. After Gordon AI asks what you have,
+      say "Remember that I prefer mild food, and I have all the listed quantities,
+      but don't finalize the ingredients yet." Wait for the response before
+      saying "I accept the list; build the cooking instructions."
+    agent_expectations: >
+      Executes local tools without pre-tool status chatter. Empty tool-start
+      notifications and successful background preference saves do not trigger
+      spoken announcements. Gives one concise useful response after each user
+      request, without repeating its availability question or announcing each
+      internal save. Does not claim success before an action succeeds. Generates
+      the cooking method only after explicit ingredient acceptance. Tool failures
+      remain visible and explainable rather than silently reported as successes.
+    tags:
+      feature: tool-speech-scheduling
+
+  - label: Packaged mix, uncertainty and one clear preparation instruction
+    instructions: |
+      Speak English. Say "I want gulab jamun using MTR mix." Then say
+      "I don't know the ingredients. I only have the mix."
+      If asked about the label or packet size, say "I don't know the packet size
+      and can't read the instructions right now." Ask "First help me plan it."
+      Do not invent label details. End after Gordon AI explains what is needed next.
+    agent_expectations: >
+      Orients the cook without jumping into dough-making. Asks for relevant packet
+      information rather than inventing exact syrup ratios, liquid amounts or yield.
+      Distinguishes number of jamuns from servings. Can explain the general method
+      as provisional, but does not display made-up numbers as an authoritative recipe.
+      Does not conduct an unrelated intake interview.
